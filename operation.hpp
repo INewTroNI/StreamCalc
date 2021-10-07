@@ -6,26 +6,27 @@ class Operation
 {
 protected:
 	T m_result;
-	bool computed{ false };
+	bool m_computed{ false };
 	
 public:
 	Operation() = default;
-	Operation(T v) : m_result{ v } {}
+	Operation(T result) : m_result{ result } {}
 	
 	virtual ~Operation() = default;
 	
-	virtual T getResult() const = 0;
+	virtual T getResult() = 0;
 	
-	void reset() { computed = false; }
+	void reset() { m_computed = false; }
 };
 
 template <typename T>
 class Value final : public Operation<T>
 {
 public:
-	Value(T v) : Operation{ v } {}
+	Value(T result) : Operation<T>{ result } {}
 	
-	virtual T getResult() { return this.m_v; }
+	T setValue(T result) { return this->m_result = result; }
+	T getResult() override { return this->m_result; }
 };
 
 #include "unary.hpp"
