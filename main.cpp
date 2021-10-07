@@ -2,19 +2,11 @@
 
 int main(int argc, char** argv)
 {
-	std::vector<std::unique_ptr<Operation<double>>> chain;
-	std::vector<Value<double>> values;
+	Calc<double> model{"test"};
 	
-	values.push_back(Value<double>{ 0.0 });
-	values.push_back(Value<double>{ 0.0 });
+	std::vector<double> v{ 5.0, 3.0 };
 	
-	chain.push_back(std::unique_ptr<Operation<double>>{ new Unary<double>{ [](double a) -> double { return -a; }, values[0] } });
-	chain.push_back(std::unique_ptr<Operation<double>>{ new Binary<double>{ [](double a, double b) -> double { return a + b; }, *(chain[0]), values[1] } });
-	
-	values[0].setValue(5);
-	values[1].setValue(3);
-	
-	std::cout << chain[1]->getResult();
+	std::cout << model.getResult(v);
 	
 	return 0;
 }

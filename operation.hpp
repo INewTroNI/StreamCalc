@@ -7,6 +7,8 @@ template <typename T>
 class Operation
 {
 protected:
+	// Данные два поля были добавлены, чтобы операция выполнялась лишь 1 раз на одних данных
+	// Это также необходимо для избежания StackOverflow при разрешении (см. Calc и реализацию Unary/Binary)
 	T m_result;
 	bool m_computed{ false };
 	
@@ -21,13 +23,14 @@ public:
 	void reset() { m_computed = false; }
 };
 
+// Данный класс необходим для того, чтобы все операции в итоге указывали на него и таким образом могли разрешиться
 template <typename T>
 class Value final : public Operation<T>
 {
 public:
 	Value(T result) : Operation<T>{ result } {}
 	
-	T setValue(T result) { return this->m_result = result; }
+	T set(T result) { return ((this->m_result) = result); }
 	T getResult() override { return this->m_result; }
 };
 
@@ -78,6 +81,7 @@ public:
 		, m_operandB{ b.m_operandB } 
 	{}
 	
+	// Из-за использование стандартных референсов присвоение не будет возможно выполнить
 	Binary& operator=(const Binary& b) = delete;
 	
 	T getResult() override
