@@ -8,8 +8,8 @@ int main(int argc, char** argv)
 	values.push_back(Value<double>{ 0.0 });
 	values.push_back(Value<double>{ 0.0 });
 	
-	chain.push_back(std::unique_ptr<Operation<double>>{ new Negation<double>{ values[0] } });
-	chain.push_back(std::unique_ptr<Operation<double>>{ new Addition<double>{ *(chain[0]), values[1] } });
+	chain.push_back(std::unique_ptr<Operation<double>>{ new Unary<double>{ [](double a) -> double { return -a; }, values[0] } });
+	chain.push_back(std::unique_ptr<Operation<double>>{ new Binary<double>{ [](double a, double b) -> double { return a + b; }, *(chain[0]), values[1] } });
 	
 	values[0].setValue(5);
 	values[1].setValue(3);
