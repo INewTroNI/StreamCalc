@@ -2,11 +2,14 @@
 
 int main(int argc, char** argv)
 {
-	Calc<double> model{"test"};
-	
-	std::vector<double> v{ 5.0, 3.0 };
-	
-	std::cout << model.getResult(v);
+	try
+	{
+		Calc<double> model{"-lg(x+10)*(sin(cos(y))+tan(5)) + 78,93 + lgn + lgnn"};
+	}
+	catch(std::runtime_error e)
+	{
+		std::cout << "Error: " << e.what() << "\n";
+	}
 	
 	return 0;
 }
