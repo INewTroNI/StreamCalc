@@ -24,17 +24,59 @@ private:
 	
 	void parse(const std::string& str_source);
 	
+	// Во всех функциях парсера если аргумент не константный, то он может быть изменён функцией
+	
+	// Меняет все символы в нижний регистр, заменяет ',' на '.' и проверяет строку на наличие запрещённых символов
+	// выполняет частичную проверку синтаксиса
+	void parserReadyString(std::string& expr);
+	
+	// Заменяет все синтаксические струткуры (операторы, переменные, значения) на соответствующие токены
+	// выполняет частичную проверку синтаксиса
+	void parserTokenizeString(std::string& str);
+	
+	// Разбивает формулу на подвыражения в соответствии со скобками
+	// выполняет частичную проверку синтаксиса
+	std::vector<std::string> parserSplit(std::string& str);
+	
+	// Читает номер операнда из строки начиная с положения i; читает влево, i изменяется
+	int parserReadOperandN(const std::string& str, int& i);
+	
+	// Добавляет бинарную операцию в m_chain; референсы не const т.к. передаются в конструктор, который нарушил бы const
+	void parserPushBinary(char sign, std::shared_ptr<Operation<T>>& a, std::shared_ptr<Operation<T>>& b);
+	
+	// Добавляет унарную операцию в m_chain; референсы не const т.к. передаются в конструктор, который нарушил бы const
+	void parserPushUnary(char sign, std::shared_ptr<Operation<T>>& a);
+	
 public:
 	Calc(const std::string& str_source)
 	{
-		parse(str_source);
+		try
+		{
+			parse(str_source);
+		}
+		catch(...)
+		{
+			m_chain.clear();
+			m_variables.clear();
+			throw;
+		}
+		
 	}
 	
 	void changeModel(const std::string& str_source)
 	{
 		m_chain.clear();
 		m_variables.clear();
-		parse(str_source);
+		try
+		{
+			parse(str_source);
+		}
+		catch(...)
+		{
+			m_chain.clear();
+			m_variables.clear();
+			throw;
+		}
 	}
 	
 	int getNumberOfVariables() noexcept
@@ -76,11 +118,9 @@ T Calc<T>::getResult(const std::vector<T>& values)
 }
 
 template <typename T>
-void Calc<T>::parse(const std::string& str_source)
+void Calc<T>::parserReadyString(std::string& expr)
 {
 	using namespace parser_util;
-	std::string expr{ str_source };
-	
 	int leftBracketN{ 0 };
 	int rightBracketN{ 0 };
 	
@@ -126,38 +166,41 @@ void Calc<T>::parse(const std::string& str_source)
 		throw std::runtime_error{ "Wrong syntax: number of ( and ) doesn't match" };
 	}
 	
+	return;
+}
+
+template <typename T>
+void Calc<T>::parserTokenizeString(std::string& str)
+{
+	using namespace parser_util;
 	std::stringstream ss;
-	
 	std::string::size_type i{}, j{};
 	
 	T tmpTypeT{};
-	auto str = expr;
-	expr = "";
-	for(i = 0; i < str.size(); i++)
+	std::string expr;
+	
+	for(i = 0; i <= str.size(); i++)
 	{
-		if (letter(str[i]))
+		if (i < str.size() && (letter(str[i]) || digit(str[i]) || str[i] == '.'))
 		{
 			ss << str[i];
 		}
-		else if (digit(str[i]) || str[i] == '.')
-		{
-			ss << str[i];
-		}
-		else if (arithm(str[i]) 
+		else /* if (arithm(str[i]) 
 			|| (str[i] == ' ') 
 			|| (str[i] == '(')
 			|| (str[i] == ')')
 			|| (str[i] == '%') 
 			|| (str[i] == '#') 
 			|| (str[i] == '$') 
-			|| (str[i] == '@'))
+			|| (str[i] == '@')) */ 
+			// also when i = str.size() (to not duplicate code; it's to check if ss is empty after end of string)
 		{
 			auto size = ss.str().size();
+			
 			if (size != 0)
 			if (checkFunction(ss.str()))
 			{
 				str.replace(i - size, size, getFuncCode(ss.str()));
-				i = i - size;
 				ss.str("");
 				ss.clear();
 			}
@@ -182,7 +225,6 @@ void Calc<T>::parse(const std::string& str_source)
 					str.replace(j, size, ss.str());
 				}
 				
-				i = i - size;
 				ss.str("");
 				ss.clear();
 			}
@@ -202,7 +244,6 @@ void Calc<T>::parse(const std::string& str_source)
 				
 				str.replace(i - size, size, ss.str());
 				
-				i = i - size;
 				ss.str("");
 				ss.clear();
 			}
@@ -210,6 +251,9 @@ void Calc<T>::parse(const std::string& str_source)
 			{
 				throw std::runtime_error{ "Wrong syntax" };
 			}
+			
+			i = i - size;
+			
 			if (arithm(str[i]))
 			{
 				str.replace(i, 1, getArithmCode(str[i]));
@@ -222,95 +266,287 @@ void Calc<T>::parse(const std::string& str_source)
 				i = str.find_first_of(str[i], i + 1);
 			}
 		}
-		else
-		{
-			throw std::runtime_error{ "Unknown symbols found; something went wrong" };
-		}
-	}
-	auto size = ss.str().size();
-	if (size > 0)
-	{
-		if (checkFunction(ss.str()))
-		{
-			str.replace(i - size, size, getFuncCode(ss.str()));
-			ss.str("");
-			ss.clear();
-		}
-		else if (checkVariable(ss.str()))
-		{
-			expr = ss.str();
-			
-			ss.str("");
-			ss.clear();
-			
-			m_variables.push_back(std::shared_ptr<Value<T>>{ new Value<T>{ 0 } });
-			ss << "@" << m_variables.size() - 1 << "@";
-			
-			std::string::size_type excl{ 0 };
-			while((j = str.find(expr, excl)) != std::string::npos)
-			{
-				if ((j + size < str.size()) && (letter(str[j + size]) || digit(str[j + size])))
-				{
-					excl = j + 1;
-					continue;
-				}
-				str.replace(j, size, ss.str());
-			}
-			
-			ss.str("");
-			ss.clear();
-		}
-		else if (checkNumber(ss.str()))
-		{
-			ss >> tmpTypeT;
-			if (ss.fail())
-			{
-				throw std::runtime_error{ "Something went wrong" };
-			}
-			
-			m_chain.push_back(std::shared_ptr<Operation<T>>{ new Value<T>{ tmpTypeT } });
-			
-			ss.str("");
-			ss.clear();
-			ss << "$" << m_chain.size() - 1 << "$";
-			
-			str.replace(i - size, size, ss.str());
-			
-			ss.str("");
-			ss.clear();
-		}
-		else
-		{
-			throw std::runtime_error{ "Wrong syntax" };
-		}
 	}
 	
+	return;
+}
+
+template <typename T>
+std::vector<std::string> Calc<T>::parserSplit(std::string& str)
+{
 	std::vector<std::string> list;
+	std::stringstream ss;
+	
+	std::string::size_type i{}, j{};
 	
 	while((i = str.find_last_of('(')) != std::string::npos)
 	{
 		j = str.find_first_of(')', i);
+		
 		if (j == std::string::npos)
 		{
 			throw std::runtime_error{ "Wrong syntax: there are unclosed ()" };
 		}
+		
 		if (j - i < 2)
 		{
 			throw std::runtime_error{ "Wrong syntax: empty () found" };
 		}
+		
 		list.push_back(str.substr(i + 1, j - i - 1));
+		
 		ss << "%" << list.size() - 1 << "%";
+		
 		str.replace(i, j - i + 1, ss.str());
+		
 		ss.str("");
+		ss.clear();
 	}
 	
 	list.push_back(str);
 	
+	return list;
+}
+
+template <typename T>
+int Calc<T>::parserReadOperandN(const std::string& str, int& i)
+{	
+	using namespace parser_util;
+	std::stringstream ss;
+	std::string expr;
+	int opN;
+	
+	--i;
+	while(digit(str[i]))
+	{
+		ss << str[i];
+		--i;
+	}
+	
+	if (ss.str().size() == 0)
+	{
+		throw std::runtime_error{ "Something went wrong" };
+	}
+	
+	expr = ss.str();
+	std::reverse(expr.begin(), expr.end());
+	ss.str(expr);
+	
+	ss >> opN;
+	
+	if (ss.fail())
+	{
+		throw std::runtime_error{ "Something went wrong" };
+	}
+	
+	return opN;
+}
+
+template <typename T>
+void Calc<T>::parserPushBinary(char sign, std::shared_ptr<Operation<T>>& a, std::shared_ptr<Operation<T>>& b)
+{
+	switch(sign)
+	{
+		case '-':
+		{
+			m_chain.push_back(std::shared_ptr<Operation<T>>{
+				new Binary<T>{
+					[](T a, T b) -> T
+					{
+						return a - b;
+					}
+					,a
+					,b
+				}
+			});
+			break;
+		}
+		case '+':
+		{
+			m_chain.push_back(std::shared_ptr<Operation<T>>{
+				new Binary<T>{
+					[](T a, T b) -> T
+					{
+						return a + b;
+					}
+					,a
+					,b
+				}
+			});
+			break;
+		}
+		case '*':
+		{
+			m_chain.push_back(std::shared_ptr<Operation<T>>{
+				new Binary<T>{
+					[](T a, T b) -> T
+					{
+						return a * b;
+					}
+					,a
+					,b
+				}
+			});
+			break;
+		}
+		case '/':
+		{
+			m_chain.push_back(std::shared_ptr<Operation<T>>{
+				new Binary<T>{
+					[](T a, T b) -> T
+					{
+						return a / b;
+					}
+					,a
+					,b
+				}
+			});
+			break;
+		}
+		case '^':
+		{
+			m_chain.push_back(std::shared_ptr<Operation<T>>{
+				new Binary<T>{
+					[](T a, T b) -> T
+					{
+						return std::pow(a, b);
+					}
+					,a
+					,b
+				}
+			});
+			break;
+		}
+		default:
+			throw std::runtime_error{ "Wrong syntax: unknown operation" };
+	}
+	
+	return;
+}
+
+template <typename T>
+void Calc<T>::parserPushUnary(char sign, std::shared_ptr<Operation<T>>& a)
+{
+	switch(sign)
+	{
+		case '-':
+		{
+			m_chain.push_back(std::shared_ptr<Operation<T>>{
+				new Unary<T>{
+					[](T a) -> T
+					{
+						return -a;
+					}
+					,a
+				}
+			});
+			break;
+		}
+		case 'c':
+		{
+			m_chain.push_back(std::shared_ptr<Operation<T>>{
+				new Unary<T>{
+					[](T a) -> T
+					{
+						return std::cos(a);
+					}
+					,a
+				}
+			});
+			break;
+		}
+		case 's':
+		{
+			m_chain.push_back(std::shared_ptr<Operation<T>>{
+				new Unary<T>{
+					[](T a) -> T
+					{
+						return std::sin(a);
+					}
+					,a
+				}
+			});
+			break;
+		}
+		case 't':
+		{
+			m_chain.push_back(std::shared_ptr<Operation<T>>{
+				new Unary<T>{
+					[](T a) -> T
+					{
+						return std::tan(a);
+					}
+					,a
+				}
+			});
+			break;
+		}
+		case 'n':
+		{
+			m_chain.push_back(std::shared_ptr<Operation<T>>{
+				new Unary<T>{
+					[](T a) -> T
+					{
+						return std::log(a);
+					}
+					,a
+				}
+			});
+			break;
+		}
+		case 'g':
+		{
+			m_chain.push_back(std::shared_ptr<Operation<T>>{
+				new Unary<T>{
+					[](T a) -> T
+					{
+						return std::log10(a);
+					}
+					,a
+				}
+			});
+			break;
+		}
+		case 'q':
+		{
+			m_chain.push_back(std::shared_ptr<Operation<T>>{
+				new Unary<T>{
+					[](T a) -> T
+					{
+						return std::sqrt(a);
+					}
+					,a
+				}
+			});
+			break;
+		}
+		default:
+			throw std::runtime_error{ "Wrong syntax: unknown operation" };
+	}
+	
+	return;
+}
+
+template <typename T>
+void Calc<T>::parse(const std::string& str_source)
+{
+	using namespace parser_util;
+	std::string expr{ str_source };
+	
+	parserReadyString(expr);
+	parserTokenizeString(expr);
+	auto list = parserSplit(expr);
+	
+	std::stringstream ss;
+	std::string::size_type j{};
+	
 	std::shared_ptr<Operation<T>> opLeft{ nullptr };
 	std::shared_ptr<Operation<T>> opRight{ nullptr };
+	
 	int opStart{ -1 };
-	int tmpInt{ 0 };
+	int opN{ 0 };
 	char sign{ 0 };
+	
 	for(int k = 0; k < list.size(); ++k)
 	{
 		auto& str{ list[k] };
@@ -330,53 +566,15 @@ void Calc<T>::parse(const std::string& str_source)
 								opStart = i;
 							}
 							
-							--i;
-							while(digit(str[i]))
-							{
-								ss << str[i];
-								--i;
-							}
-							
-							if (ss.str().size() == 0)
-							{
-								throw std::runtime_error{ "Something went wrong" };
-							}
-							
-							expr = ss.str();
-							std::reverse(expr.begin(), expr.end());
-							ss.str(expr);
-							
-							ss >> tmpInt;
-							
-							if (ss.fail())
-							{
-								throw std::runtime_error{ "Something went wrong" };
-							}
-							
-							ss.str("");
-							ss.clear();
+							opN = parserReadOperandN(str, i);
 							
 							if (str[i] == '@')
 							{
-								if (m_variables.size() > tmpInt)
-								{
-									opRight = m_variables[tmpInt];
-								}
-								else
-								{
-									throw std::runtime_error{ "Something went wrong" };
-								}
+								opRight = m_variables[opN];
 							}
 							else
 							{
-								if (m_chain.size() > tmpInt)
-								{
-									opRight = m_chain[tmpInt];
-								}
-								else
-								{
-									throw std::runtime_error{ "Something went wrong" };
-								}
+								opRight = m_chain[opN];
 							}
 						}
 						else
@@ -386,138 +584,24 @@ void Calc<T>::parse(const std::string& str_source)
 								throw std::runtime_error("Wrong syntax: operands without operation");
 							}
 							
-							int tmpStart{ i };
-							
-							--i;
-							while(digit(str[i]))
-							{
-								ss << str[i];
-								--i;
-							}
-							
-							if (ss.str().size() == 0)
-							{
-								throw std::runtime_error{ "Something went wrong" };
-							}
-							
-							expr = ss.str();
-							std::reverse(expr.begin(), expr.end());
-							ss.str(expr);
-							
-							ss >> tmpInt;
-							
-							if (ss.fail())
-							{
-								throw std::runtime_error{ "Something went wrong" };
-							}
-							
-							ss.str("");
-							ss.clear();
+							opN = parserReadOperandN(str, i);
 							
 							if (str[i] == '@')
 							{
-								if (m_variables.size() > tmpInt)
-								{
-									opLeft = m_variables[tmpInt];
-								}
-								else
-								{
-									throw std::runtime_error{ "Something went wrong" };
-								}
+								opLeft = m_variables[opN];
 							}
 							else
 							{
-								if (m_chain.size() > tmpInt)
-								{
-									opLeft = m_chain[tmpInt];
-								}
-								else
-								{
-									throw std::runtime_error{ "Something went wrong" };
-								}
+								opLeft = m_chain[opN];
 							}
 							
-							switch(sign)
-							{
-								case '-':
-								{
-									m_chain.push_back(std::shared_ptr<Operation<T>>{
-										new Binary<T>{
-											[](T a, T b) -> T
-											{
-												return a - b;
-											}
-											,opLeft
-											,opRight
-										}
-									});
-									break;
-								}
-								case '+':
-								{
-									m_chain.push_back(std::shared_ptr<Operation<T>>{
-										new Binary<T>{
-											[](T a, T b) -> T
-											{
-												return a + b;
-											}
-											,opLeft
-											,opRight
-										}
-									});
-									break;
-								}
-								case '*':
-								{
-									m_chain.push_back(std::shared_ptr<Operation<T>>{
-										new Binary<T>{
-											[](T a, T b) -> T
-											{
-												return a * b;
-											}
-											,opLeft
-											,opRight
-										}
-									});
-									break;
-								}
-								case '/':
-								{
-									m_chain.push_back(std::shared_ptr<Operation<T>>{
-										new Binary<T>{
-											[](T a, T b) -> T
-											{
-												return a / b;
-											}
-											,opLeft
-											,opRight
-										}
-									});
-									break;
-								}
-								case '^':
-								{
-									m_chain.push_back(std::shared_ptr<Operation<T>>{
-										new Binary<T>{
-											[](T a, T b) -> T
-											{
-												return std::pow(a, b);
-											}
-											,opLeft
-											,opRight
-										}
-									});
-									break;
-								}
-								default:
-									throw std::runtime_error{ "Wrong syntax: unknown operation" };
-							}
+							parserPushBinary(sign, opLeft, opRight);
 							
-							tmpInt = m_chain.size() - 1;
-							opRight = m_chain[tmpInt];
+							opN = m_chain.size() - 1;
+							opRight = m_chain[opN];
 							opLeft = nullptr;
 							
-							ss << "$" << tmpInt << "$";
+							ss << "$" << opN << "$";
 							
 							str.replace(i, opStart - i + 1, ss.str());
 							
@@ -568,107 +652,13 @@ void Calc<T>::parse(const std::string& str_source)
 									break;
 								}
 							}
-							switch(sign)
-							{
-								case '-':
-								{
-									m_chain.push_back(std::shared_ptr<Operation<T>>{
-										new Unary<T>{
-											[](T a) -> T
-											{
-												return -a;
-											}
-											,opRight
-										}
-									});
-									break;
-								}
-								case 'c':
-								{
-									m_chain.push_back(std::shared_ptr<Operation<T>>{
-										new Unary<T>{
-											[](T a) -> T
-											{
-												return std::cos(a);
-											}
-											,opRight
-										}
-									});
-									break;
-								}
-								case 's':
-								{
-									m_chain.push_back(std::shared_ptr<Operation<T>>{
-										new Unary<T>{
-											[](T a) -> T
-											{
-												return std::sin(a);
-											}
-											,opRight
-										}
-									});
-									break;
-								}
-								case 't':
-								{
-									m_chain.push_back(std::shared_ptr<Operation<T>>{
-										new Unary<T>{
-											[](T a) -> T
-											{
-												return std::tan(a);
-											}
-											,opRight
-										}
-									});
-									break;
-								}
-								case 'n':
-								{
-									m_chain.push_back(std::shared_ptr<Operation<T>>{
-										new Unary<T>{
-											[](T a) -> T
-											{
-												return std::log(a);
-											}
-											,opRight
-										}
-									});
-									break;
-								}
-								case 'g':
-								{
-									m_chain.push_back(std::shared_ptr<Operation<T>>{
-										new Unary<T>{
-											[](T a) -> T
-											{
-												return std::log10(a);
-											}
-											,opRight
-										}
-									});
-									break;
-								}
-								case 'q':
-								{
-									m_chain.push_back(std::shared_ptr<Operation<T>>{
-										new Unary<T>{
-											[](T a) -> T
-											{
-												return std::sqrt(a);
-											}
-											,opRight
-										}
-									});
-									break;
-								}
-								default:
-									throw std::runtime_error{ "Wrong syntax: unknown operation" };
-							}
 							
-							tmpInt = m_chain.size() - 1;
-							opRight = m_chain[tmpInt];
+							parserPushUnary(sign, opRight);
 							
-							ss << "$" << tmpInt << "$";
+							opN = m_chain.size() - 1;
+							opRight = m_chain[opN];
+							
+							ss << "$" << opN << "$";
 							
 							str.replace(i, opStart - i + 1, ss.str());
 							
@@ -691,7 +681,6 @@ void Calc<T>::parse(const std::string& str_source)
 				}
 			}
 			
-			
 			if (sign != 0)
 			{
 				throw std::runtime_error{ "Wrong syntax: odd operator found" };
@@ -704,13 +693,13 @@ void Calc<T>::parse(const std::string& str_source)
 					expr = ss.str();
 					ss.str("");
 					ss.clear();
-					if (m_chain.size() > tmpInt && m_chain[tmpInt] == opRight)
+					if (m_chain.size() > opN && m_chain[opN] == opRight)
 					{
-						ss << "$" << tmpInt << "$";
+						ss << "$" << opN << "$";
 					}
-					else if (m_variables.size() > tmpInt && m_variables[tmpInt] == opRight)
+					else if (m_variables.size() > opN && m_variables[opN] == opRight)
 					{
-						ss << "@" << tmpInt << "@";
+						ss << "@" << opN << "@";
 					}
 					else
 					{
