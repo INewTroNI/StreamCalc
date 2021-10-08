@@ -7,7 +7,7 @@ bool parser_util::letter(const char c)
 
 bool parser_util::digit(const char c)
 {
-	return ((c >= '0') && (c <= '9') || c == '.' || c == ',');
+	return ((c >= '0') && (c <= '9'));
 }
 
 bool parser_util::arithm(const char c)
@@ -70,6 +70,34 @@ bool parser_util::checkVariable(const std::string& str)
 			if (!(letter(str[i]) || digit(str[i])))
 			{
 				return false;
+			}
+		}
+	}
+	
+	return true;
+}
+
+bool parser_util::checkNumber(const std::string& str)
+{
+	bool comma{false};
+	for(int i = 0; i < str.size(); i++)
+	{
+		if (i == 0)
+		{
+			if (!digit(str[i]))
+			{
+				return false;
+			}
+		}
+		else
+		{
+			if (!(digit(str[i]) || (str[i] == '.' && !comma)))
+			{
+				return false;
+			}
+			else if (str[i] == '.')
+			{
+				comma = true;
 			}
 		}
 	}

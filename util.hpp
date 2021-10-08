@@ -13,6 +13,7 @@ namespace parser_util
 	int precedence(const char c);
 	bool checkFunction(const std::string& str);
 	bool checkVariable(const std::string& str);
+	bool checkNumber(const std::string& str);
 	std::string getFuncCode(const std::string& str);
 	std::string getArithmCode(const char c);
 }

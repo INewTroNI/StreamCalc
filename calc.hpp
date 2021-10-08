@@ -67,7 +67,12 @@ T Calc<T>::getResult(const std::vector<T>& values)
 		m_chain[i]->getResult();
 	}
 	
-	return m_chain[m_chain.size() - 1]->getResult();
+	if (m_chain.size() > 0)
+	{
+		return m_chain[m_chain.size() - 1]->getResult();
+	}
+	
+	return 0;
 }
 
 template <typename T>
@@ -76,6 +81,9 @@ void Calc<T>::parse(const std::string& str_source)
 	using namespace parser_util;
 	std::string expr{ str_source };
 	
+	int leftBracketN{ 0 };
+	int rightBracketN{ 0 };
+	
 	for(char& x : expr)
 	{
 		if (!(letter(x) || digit(x) || arithm(x) || x == ','))
@@ -83,7 +91,15 @@ void Calc<T>::parse(const std::string& str_source)
 			switch(x)
 			{
 				case '(':
+				{
+					++leftBracketN;
+					break;
+				}
 				case ')':
+				{
+					++rightBracketN;
+					break;
+				}
 				case ' ':
 				case '.':
 				{
@@ -105,6 +121,11 @@ void Calc<T>::parse(const std::string& str_source)
 		}
 	}
 	
+	if (rightBracketN != leftBracketN)
+	{
+		throw std::runtime_error{ "Wrong syntax: number of ( and ) doesn't match" };
+	}
+	
 	std::stringstream ss;
 	
 	std::string::size_type i{}, j{};
@@ -118,7 +139,7 @@ void Calc<T>::parse(const std::string& str_source)
 		{
 			ss << str[i];
 		}
-		else if (digit(str[i]))
+		else if (digit(str[i]) || str[i] == '.')
 		{
 			ss << str[i];
 		}
@@ -165,12 +186,12 @@ void Calc<T>::parse(const std::string& str_source)
 				ss.str("");
 				ss.clear();
 			}
-			else
+			else if (checkNumber(ss.str()))
 			{
 				ss >> tmpTypeT;
 				if (ss.fail())
 				{
-					throw std::runtime_error{ "Wrong syntax" };
+					throw std::runtime_error{ "Something went wrong" };
 				}
 				
 				m_chain.push_back(std::shared_ptr<Operation<T>>{ new Value<T>{ tmpTypeT } });
@@ -184,6 +205,10 @@ void Calc<T>::parse(const std::string& str_source)
 				i = i - size;
 				ss.str("");
 				ss.clear();
+			}
+			else
+			{
+				throw std::runtime_error{ "Wrong syntax" };
 			}
 			if (arithm(str[i]))
 			{
@@ -235,12 +260,12 @@ void Calc<T>::parse(const std::string& str_source)
 			ss.str("");
 			ss.clear();
 		}
-		else
+		else if (checkNumber(ss.str()))
 		{
 			ss >> tmpTypeT;
 			if (ss.fail())
 			{
-				throw std::runtime_error{ "Wrong syntax" };
+				throw std::runtime_error{ "Something went wrong" };
 			}
 			
 			m_chain.push_back(std::shared_ptr<Operation<T>>{ new Value<T>{ tmpTypeT } });
@@ -254,6 +279,10 @@ void Calc<T>::parse(const std::string& str_source)
 			ss.str("");
 			ss.clear();
 		}
+		else
+		{
+			throw std::runtime_error{ "Wrong syntax" };
+		}
 	}
 	
 	std::vector<std::string> list;
@@ -263,11 +292,11 @@ void Calc<T>::parse(const std::string& str_source)
 		j = str.find_first_of(')', i);
 		if (j == std::string::npos)
 		{
-			throw std::runtime_error{ "Wrong syntax" };
+			throw std::runtime_error{ "Wrong syntax: there are unclosed ()" };
 		}
 		if (j - i < 2)
 		{
-			throw std::runtime_error{ "Wrong syntax" };
+			throw std::runtime_error{ "Wrong syntax: empty () found" };
 		}
 		list.push_back(str.substr(i + 1, j - i - 1));
 		ss << "%" << list.size() - 1 << "%";
@@ -517,7 +546,7 @@ void Calc<T>::parse(const std::string& str_source)
 						
 						i = i - 2;
 						
-						if (precedence(sign) > precedenceLevel)
+						if ((precedence(sign) != precedenceLevel) && !(sign == '-' && precedenceLevel == 3))
 						{
 							opRight = nullptr;
 							sign = 0;
@@ -662,9 +691,10 @@ void Calc<T>::parse(const std::string& str_source)
 				}
 			}
 			
+			
 			if (sign != 0)
 			{
-				throw std::runtime_error{ "Wrong syntax" };
+				throw std::runtime_error{ "Wrong syntax: odd operator found" };
 			}
 			if (opRight != nullptr)
 			{
@@ -674,11 +704,11 @@ void Calc<T>::parse(const std::string& str_source)
 					expr = ss.str();
 					ss.str("");
 					ss.clear();
-					if (m_chain[tmpInt] == opRight)
+					if (m_chain.size() > tmpInt && m_chain[tmpInt] == opRight)
 					{
 						ss << "$" << tmpInt << "$";
 					}
-					else if (m_variables[tmpInt] == opRight)
+					else if (m_variables.size() > tmpInt && m_variables[tmpInt] == opRight)
 					{
 						ss << "@" << tmpInt << "@";
 					}
@@ -701,6 +731,11 @@ void Calc<T>::parse(const std::string& str_source)
 			opStart = -1;
 		}
 		
+	}
+	
+	if (m_chain.size() == 0 && m_variables.size() == 1)
+	{
+		m_chain.push_back(m_variables[0]);
 	}
 }
 
