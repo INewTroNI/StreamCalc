@@ -10,7 +10,7 @@ namespace parser_util
 	bool arithm(const char c);
 	bool unary(const char c);
 	bool binary(const char c);
-	bool precedence(const char c);
+	int precedence(const char c);
 	bool checkFunction(const std::string& str);
 	bool checkVariable(const std::string& str);
 	std::string getFuncCode(const std::string& str);

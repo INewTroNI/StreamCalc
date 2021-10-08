@@ -2,6 +2,7 @@
 #define STREAMCALC_OPERATION_HPP
 
 #include <functional>
+#include <iostream>
 #include <memory>
 
 template <typename T>

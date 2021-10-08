@@ -1,8 +1,9 @@
 #ifndef STREAMCALC_CALC_HPP
 #define STREAMCALC_CALC_HPP
 
-#include <cstdlib>
-#include <iostream>
+#include <algorithm>
+#include <cctype>
+#include <cmath>
 #include <memory>
 #include <sstream>
 #include <stdexcept>
@@ -19,7 +20,7 @@ class Calc
 {
 private:
 	std::vector<std::shared_ptr<Operation<T>>> m_chain;
-	std::vector<Value<T>> m_variables;
+	std::vector<std::shared_ptr<Value<T>>> m_variables;
 	
 	void parse(const std::string& str_source);
 	
@@ -55,7 +56,7 @@ T Calc<T>::getResult(const std::vector<T>& values)
 	int i{ 0 };
 	for(auto x : values)
 	{
-		m_variables[i].set(x);
+		m_variables[i]->set(x);
 		++i;
 	}
 	
@@ -75,23 +76,32 @@ void Calc<T>::parse(const std::string& str_source)
 	using namespace parser_util;
 	std::string expr{ str_source };
 	
-	for(char x : expr)
+	for(char& x : expr)
 	{
-		if (!(letter(x) || digit(x) || arithm(x)))
-		switch(x)
+		if (!(letter(x) || digit(x) || arithm(x) || x == ','))
 		{
-			case '(':
-			case ')':
-			case ' ':
-			case '.':
-			case ',':
+			switch(x)
 			{
-				break;
+				case '(':
+				case ')':
+				case ' ':
+				case '.':
+				{
+					break;
+				}
+				default:
+				{
+					throw std::runtime_error{ "Illegal symbols in formula" };
+				}
 			}
-			default:
-			{
-				throw std::runtime_error{ "Illegal symbols in formula" };
-			}
+		}
+		else if (x == ',')
+		{
+			x = '.';
+		}
+		else
+		{
+			x = std::tolower(x);
 		}
 	}
 	
@@ -137,7 +147,7 @@ void Calc<T>::parse(const std::string& str_source)
 				ss.str("");
 				ss.clear();
 				
-				m_variables.push_back(Value<T>{ 0 });
+				m_variables.push_back(std::shared_ptr<Value<T>>{ new Value<T>{ 0 } });
 				ss << "@" << m_variables.size() - 1 << "@";
 				
 				std::string::size_type excl{ 0 };
@@ -208,7 +218,7 @@ void Calc<T>::parse(const std::string& str_source)
 			ss.str("");
 			ss.clear();
 			
-			m_variables.push_back(Value<T>{ 0 });
+			m_variables.push_back(std::shared_ptr<Value<T>>{ new Value<T>{ 0 } });
 			ss << "@" << m_variables.size() - 1 << "@";
 			
 			std::string::size_type excl{ 0 };
@@ -246,8 +256,6 @@ void Calc<T>::parse(const std::string& str_source)
 		}
 	}
 	
-	std::cout << str << "\n";
-	
 	std::vector<std::string> list;
 	
 	while((i = str.find_last_of('(')) != std::string::npos)
@@ -269,14 +277,431 @@ void Calc<T>::parse(const std::string& str_source)
 	
 	list.push_back(str);
 	
-	std::cout << "\n";
-	
-	for(auto& s : list)
+	std::shared_ptr<Operation<T>> opLeft{ nullptr };
+	std::shared_ptr<Operation<T>> opRight{ nullptr };
+	int opStart{ -1 };
+	int tmpInt{ 0 };
+	char sign{ 0 };
+	for(int k = 0; k < list.size(); ++k)
 	{
-		std::cout << s << "\n";
+		auto& str{ list[k] };
+		for (int precedenceLevel = 0; precedenceLevel < 4; ++precedenceLevel)
+		{
+			for(int i = str.size() - 1; i >= 0; --i)
+			{
+				switch(str[i])
+				{
+					case '$':
+					case '@':
+					{
+						if (opRight == nullptr)
+						{
+							if (opStart < 0)
+							{
+								opStart = i;
+							}
+							
+							--i;
+							while(digit(str[i]))
+							{
+								ss << str[i];
+								--i;
+							}
+							
+							if (ss.str().size() == 0)
+							{
+								throw std::runtime_error{ "Something went wrong" };
+							}
+							
+							expr = ss.str();
+							std::reverse(expr.begin(), expr.end());
+							ss.str(expr);
+							
+							ss >> tmpInt;
+							
+							if (ss.fail())
+							{
+								throw std::runtime_error{ "Something went wrong" };
+							}
+							
+							ss.str("");
+							ss.clear();
+							
+							if (str[i] == '@')
+							{
+								if (m_variables.size() > tmpInt)
+								{
+									opRight = m_variables[tmpInt];
+								}
+								else
+								{
+									throw std::runtime_error{ "Something went wrong" };
+								}
+							}
+							else
+							{
+								if (m_chain.size() > tmpInt)
+								{
+									opRight = m_chain[tmpInt];
+								}
+								else
+								{
+									throw std::runtime_error{ "Something went wrong" };
+								}
+							}
+						}
+						else
+						{
+							if (sign == 0)
+							{
+								throw std::runtime_error("Wrong syntax: operands without operation");
+							}
+							
+							int tmpStart{ i };
+							
+							--i;
+							while(digit(str[i]))
+							{
+								ss << str[i];
+								--i;
+							}
+							
+							if (ss.str().size() == 0)
+							{
+								throw std::runtime_error{ "Something went wrong" };
+							}
+							
+							expr = ss.str();
+							std::reverse(expr.begin(), expr.end());
+							ss.str(expr);
+							
+							ss >> tmpInt;
+							
+							if (ss.fail())
+							{
+								throw std::runtime_error{ "Something went wrong" };
+							}
+							
+							ss.str("");
+							ss.clear();
+							
+							if (str[i] == '@')
+							{
+								if (m_variables.size() > tmpInt)
+								{
+									opLeft = m_variables[tmpInt];
+								}
+								else
+								{
+									throw std::runtime_error{ "Something went wrong" };
+								}
+							}
+							else
+							{
+								if (m_chain.size() > tmpInt)
+								{
+									opLeft = m_chain[tmpInt];
+								}
+								else
+								{
+									throw std::runtime_error{ "Something went wrong" };
+								}
+							}
+							
+							switch(sign)
+							{
+								case '-':
+								{
+									m_chain.push_back(std::shared_ptr<Operation<T>>{
+										new Binary<T>{
+											[](T a, T b) -> T
+											{
+												return a - b;
+											}
+											,opLeft
+											,opRight
+										}
+									});
+									break;
+								}
+								case '+':
+								{
+									m_chain.push_back(std::shared_ptr<Operation<T>>{
+										new Binary<T>{
+											[](T a, T b) -> T
+											{
+												return a + b;
+											}
+											,opLeft
+											,opRight
+										}
+									});
+									break;
+								}
+								case '*':
+								{
+									m_chain.push_back(std::shared_ptr<Operation<T>>{
+										new Binary<T>{
+											[](T a, T b) -> T
+											{
+												return a * b;
+											}
+											,opLeft
+											,opRight
+										}
+									});
+									break;
+								}
+								case '/':
+								{
+									m_chain.push_back(std::shared_ptr<Operation<T>>{
+										new Binary<T>{
+											[](T a, T b) -> T
+											{
+												return a / b;
+											}
+											,opLeft
+											,opRight
+										}
+									});
+									break;
+								}
+								case '^':
+								{
+									m_chain.push_back(std::shared_ptr<Operation<T>>{
+										new Binary<T>{
+											[](T a, T b) -> T
+											{
+												return std::pow(a, b);
+											}
+											,opLeft
+											,opRight
+										}
+									});
+									break;
+								}
+								default:
+									throw std::runtime_error{ "Wrong syntax: unknown operation" };
+							}
+							
+							tmpInt = m_chain.size() - 1;
+							opRight = m_chain[tmpInt];
+							opLeft = nullptr;
+							
+							ss << "$" << tmpInt << "$";
+							
+							str.replace(i, opStart - i + 1, ss.str());
+							
+							opStart = i + ss.str().size() - 1;
+							
+							ss.str("");
+							ss.clear();
+							
+							sign = 0;
+						}
+						break;
+					}
+					case '#':
+					{
+						if (sign != 0)
+						{
+							throw std::runtime_error{ "Wrong syntax: consecutive non-unary operations" };
+						}
+						
+						if (opRight == nullptr)
+						{
+							throw std::runtime_error{ "Wrong syntax: operation without right operand" };
+						}
+						
+						sign = str[i - 1];
+						
+						i = i - 2;
+						
+						if (precedence(sign) > precedenceLevel)
+						{
+							opRight = nullptr;
+							sign = 0;
+							opStart = -1;
+							break;
+						}
+						
+						if (precedenceLevel == 0)
+						{
+							if (sign == '-')
+							{
+								int j;
+								for(j = i - 1; str[j] >= 0 && str[j] == ' '; --j);
+								if ((j > -1) && (str[j] == '$' || str[j] == '@'))
+								{
+									opRight = nullptr;
+									sign = 0;
+									opStart = -1;
+									break;
+								}
+							}
+							switch(sign)
+							{
+								case '-':
+								{
+									m_chain.push_back(std::shared_ptr<Operation<T>>{
+										new Unary<T>{
+											[](T a) -> T
+											{
+												return -a;
+											}
+											,opRight
+										}
+									});
+									break;
+								}
+								case 'c':
+								{
+									m_chain.push_back(std::shared_ptr<Operation<T>>{
+										new Unary<T>{
+											[](T a) -> T
+											{
+												return std::cos(a);
+											}
+											,opRight
+										}
+									});
+									break;
+								}
+								case 's':
+								{
+									m_chain.push_back(std::shared_ptr<Operation<T>>{
+										new Unary<T>{
+											[](T a) -> T
+											{
+												return std::sin(a);
+											}
+											,opRight
+										}
+									});
+									break;
+								}
+								case 't':
+								{
+									m_chain.push_back(std::shared_ptr<Operation<T>>{
+										new Unary<T>{
+											[](T a) -> T
+											{
+												return std::tan(a);
+											}
+											,opRight
+										}
+									});
+									break;
+								}
+								case 'n':
+								{
+									m_chain.push_back(std::shared_ptr<Operation<T>>{
+										new Unary<T>{
+											[](T a) -> T
+											{
+												return std::log(a);
+											}
+											,opRight
+										}
+									});
+									break;
+								}
+								case 'g':
+								{
+									m_chain.push_back(std::shared_ptr<Operation<T>>{
+										new Unary<T>{
+											[](T a) -> T
+											{
+												return std::log10(a);
+											}
+											,opRight
+										}
+									});
+									break;
+								}
+								case 'q':
+								{
+									m_chain.push_back(std::shared_ptr<Operation<T>>{
+										new Unary<T>{
+											[](T a) -> T
+											{
+												return std::sqrt(a);
+											}
+											,opRight
+										}
+									});
+									break;
+								}
+								default:
+									throw std::runtime_error{ "Wrong syntax: unknown operation" };
+							}
+							
+							tmpInt = m_chain.size() - 1;
+							opRight = m_chain[tmpInt];
+							
+							ss << "$" << tmpInt << "$";
+							
+							str.replace(i, opStart - i + 1, ss.str());
+							
+							opStart = i + ss.str().size() - 1;
+							
+							ss.str("");
+							ss.clear();
+							
+							sign = 0;
+						}
+						
+						break;
+					}
+					case '%':
+						while (str[--i] != '%');
+					case ' ':
+						break;
+					default:
+						throw std::runtime_error{ "Unexpected symbol; something went wrong" };
+				}
+			}
+			
+			if (sign != 0)
+			{
+				throw std::runtime_error{ "Wrong syntax" };
+			}
+			if (opRight != nullptr)
+			{
+				if (precedenceLevel == 3)
+				{
+					ss << "%" << k << "%";
+					expr = ss.str();
+					ss.str("");
+					ss.clear();
+					if (m_chain[tmpInt] == opRight)
+					{
+						ss << "$" << tmpInt << "$";
+					}
+					else if (m_variables[tmpInt] == opRight)
+					{
+						ss << "@" << tmpInt << "@";
+					}
+					else
+					{
+						throw std::runtime_error{ "Something went wrong" };
+					}
+					for(auto& x : list)
+					{
+						while((j = x.find(expr)) != std::string::npos)
+						{
+							x.replace(j, expr.size(), ss.str());
+						}
+					}
+					ss.str("");
+					ss.clear();
+				}
+				opRight = nullptr;
+			}
+			opStart = -1;
+		}
+		
 	}
-	
-	
 }
 
 #endif

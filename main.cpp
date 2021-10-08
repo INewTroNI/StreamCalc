@@ -2,9 +2,28 @@
 
 int main(int argc, char** argv)
 {
+	if (argc < 2)
+	{
+		std::cout << "Usage: ";
+		return 0;
+	}
 	try
 	{
-		Calc<double> model{"-lg(x+10)*(sin(cos(y))+tan(5)) + 78,93 + lgn + lgnn"};
+		Calc<double> model{ argv[1] };
+		
+		std::cout << model.getNumberOfVariables() << "\n";
+		
+		std::vector<double> v;
+		
+		double tmp;
+		
+		for (int i = 0; i < model.getNumberOfVariables(); i++)
+		{
+			std::cin >> tmp;
+			v.push_back(tmp);
+		}
+		
+		std::cout << model.getResult(v);
 	}
 	catch(std::runtime_error e)
 	{

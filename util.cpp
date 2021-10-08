@@ -25,7 +25,7 @@ bool parser_util::binary(const char c)
 	return ((c == '-') || (c == '+') || (c == '*') || (c == '/') || (c == '^'));
 }
 
-bool parser_util::precedence(const char c)
+int parser_util::precedence(const char c)
 {
 	if (unary(c))
 	{
