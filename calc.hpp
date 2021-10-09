@@ -552,6 +552,9 @@ void Calc<T>::parse(const std::string& str_source)
 		auto& str{ list[k] };
 		for (int precedenceLevel = 0; precedenceLevel < 4; ++precedenceLevel)
 		{
+			opRight = nullptr;
+			opStart = -1;
+			
 			for(int i = str.size() - 1; i >= 0; --i)
 			{
 				switch(str[i])
@@ -685,41 +688,35 @@ void Calc<T>::parse(const std::string& str_source)
 			{
 				throw std::runtime_error{ "Wrong syntax: odd operator found" };
 			}
-			if (opRight != nullptr)
-			{
-				if (precedenceLevel == 3)
-				{
-					ss << "%" << k << "%";
-					expr = ss.str();
-					ss.str("");
-					ss.clear();
-					if (m_chain.size() > opN && m_chain[opN] == opRight)
-					{
-						ss << "$" << opN << "$";
-					}
-					else if (m_variables.size() > opN && m_variables[opN] == opRight)
-					{
-						ss << "@" << opN << "@";
-					}
-					else
-					{
-						throw std::runtime_error{ "Something went wrong" };
-					}
-					for(auto& x : list)
-					{
-						while((j = x.find(expr)) != std::string::npos)
-						{
-							x.replace(j, expr.size(), ss.str());
-						}
-					}
-					ss.str("");
-					ss.clear();
-				}
-				opRight = nullptr;
-			}
-			opStart = -1;
 		}
-		
+		if (opRight != nullptr)
+		{
+			ss << "%" << k << "%";
+			expr = ss.str();
+			ss.str("");
+			ss.clear();
+			if (m_chain.size() > opN && m_chain[opN] == opRight)
+			{
+				ss << "$" << opN << "$";
+			}
+			else if (m_variables.size() > opN && m_variables[opN] == opRight)
+			{
+				ss << "@" << opN << "@";
+			}
+			else
+			{
+				throw std::runtime_error{ "Something went wrong" };
+			}
+			for(auto& x : list)
+			{
+				while((j = x.find(expr)) != std::string::npos)
+				{
+					x.replace(j, expr.size(), ss.str());
+				}
+			}
+			ss.str("");
+			ss.clear();
+		}
 	}
 	
 	if (m_chain.size() == 0 && m_variables.size() == 1)
