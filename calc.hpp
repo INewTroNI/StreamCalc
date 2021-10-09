@@ -557,6 +557,7 @@ void Calc<T>::parse(const std::string& str_source)
 			
 			for(int i = str.size() - 1; i >= 0; --i)
 			{
+				// std::cout << str << " " << str[i-1] << str[i] << " " << i << "\n";
 				switch(str[i])
 				{
 					case '$':
@@ -624,16 +625,11 @@ void Calc<T>::parse(const std::string& str_source)
 							throw std::runtime_error{ "Wrong syntax: consecutive non-unary operations" };
 						}
 						
-						if (opRight == nullptr)
-						{
-							throw std::runtime_error{ "Wrong syntax: operation without right operand" };
-						}
-						
 						sign = str[i - 1];
 						
 						i = i - 2;
 						
-						if ((precedence(sign) != precedenceLevel) && !(sign == '-' && precedenceLevel == 3))
+						if ((precedence(sign) != precedenceLevel) && !(sign == '-'))
 						{
 							opRight = nullptr;
 							sign = 0;
@@ -641,13 +637,19 @@ void Calc<T>::parse(const std::string& str_source)
 							break;
 						}
 						
-						if (precedenceLevel == 0)
+						if (sign == '-')
 						{
-							if (sign == '-')
+							int j;
+							for(j = i - 1; str[j] >= 0 && str[j] == ' '; --j);
+							if ((j > -1) && (str[j] == '$' || str[j] == '@'))
 							{
-								int j;
-								for(j = i - 1; str[j] >= 0 && str[j] == ' '; --j);
-								if ((j > -1) && (str[j] == '$' || str[j] == '@'))
+								// Когда мы встретили бинарный минус
+								if (precedence(sign) == precedenceLevel)
+								{
+									// Когда можем разрешать бинарный минус
+									break;
+								}
+								else
 								{
 									opRight = nullptr;
 									sign = 0;
@@ -655,7 +657,28 @@ void Calc<T>::parse(const std::string& str_source)
 									break;
 								}
 							}
-							
+							else if ((j > 0) && (precedence(str[j - 1]) != precedenceLevel))
+							{
+								// When left operation doesn't have current precedence level
+								// that means that we won't resolve it next and unary minus can be resolved later
+								opRight = nullptr;
+								sign = 0;
+								opStart = -1;
+								break;
+							}
+							// When left operation has current precedence level
+							// that means that we need to resolve it next and unary minus must be resolved now
+							// it also means that all right operations (if any) are of lower precedence than it 
+							// and we can safely resolve current unary minus with curren right operand
+						}
+						
+						if (opRight == nullptr)
+						{
+							throw std::runtime_error{ "Wrong syntax: operation without right operand" };
+						}
+						
+						if (unary(sign))
+						{
 							parserPushUnary(sign, opRight);
 							
 							opN = m_chain.size() - 1;
@@ -675,8 +698,8 @@ void Calc<T>::parse(const std::string& str_source)
 						
 						break;
 					}
-					case '%':
-						while (str[--i] != '%');
+					/* case '%':
+						while (str[--i] != '%'); */
 					case ' ':
 						break;
 					default:

@@ -27,7 +27,7 @@ bool parser_util::binary(const char c)
 
 int parser_util::precedence(const char c)
 {
-	if (unary(c))
+	if (unary(c) && !(c == '-'))
 	{
 		return 0;
 	}
@@ -39,6 +39,7 @@ int parser_util::precedence(const char c)
 		case '/':
 			return 2;
 		case '+':
+		case '-':
 			return 3;
 	}
 	return 4;
