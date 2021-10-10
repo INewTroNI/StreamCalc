@@ -9,10 +9,11 @@ int main(int argc, char** argv)
 		std::cout << "If there are variables in the formula, they will be accepted in stdin stream one set per line.";
 		return 0;
 	}
+	Calc<double> model{ "" };
 	try
 	{
-		Calc<double> model{ argv[1] };
-		
+		// Calc<double> model{ argv[1] };
+		model.changeModel( argv[1] );
 		// std::cout << model.getNumberOfVariables() << "\n";
 		
 		std::vector<double> v;

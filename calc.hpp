@@ -9,6 +9,7 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include <utility>
 
 #include "operation.hpp"
 #include "util.hpp"
@@ -48,42 +49,67 @@ private:
 	void parserPushUnary(char sign, std::shared_ptr<Operation<T>>& a);
 	
 public:
-	Calc(const std::string& str_source)
+	// strong exception garantee
+	Calc(const std::string& str_source) noexcept(0)
 	{
-		try
-		{
-			parse(str_source);
-		}
-		catch(...)
-		{
-			m_chain.clear();
-			m_variables.clear();
-			throw;
-		}
-		
+		// if parser throws, then members will be destroyed or the program will terminate
+		// so it's safe not to handle throws here
+		parse(str_source);
 	}
 	
+	// strong exception garantee
+	Calc(const Calc& c) = default;
+	
+	~Calc() noexcept = default;
+	
+	// strong exception garantee
+	Calc(Calc&& c) 
+		: m_chain{ std::move(c.m_chain) }
+		, m_variables{ std::move(c.m_variables) }
+	{
+		c.clear();
+	}
+	
+	Calc& operator=(const Calc& c) = delete;
+	
+	// strong exception garantee
+	Calc& operator=(Calc&& c)
+	{
+		m_chain = std::move(c.m_chain);
+		m_variables = std::move(c.m_variables);
+		c.clear();
+		
+		return *this;
+	}
+	
+	// strong exception garantee
 	void changeModel(const std::string& str_source)
 	{
-		m_chain.clear();
-		m_variables.clear();
+		Calc copy{ std::move(*this) };
 		try
 		{
 			parse(str_source);
 		}
 		catch(...)
 		{
-			m_chain.clear();
-			m_variables.clear();
+			*this = std::move(copy);
 			throw;
 		}
 	}
 	
-	int getNumberOfVariables() noexcept
+	int getNumberOfVariables() const noexcept
 	{
 		return m_variables.size();
 	}
 	
+	void clear() noexcept
+	{
+		m_chain.clear();
+		m_variables.clear();
+	}
+	
+	// base exception garantee 
+	// (though I think it's strong, there are only m_result changes for all Operations and that won't affect behavior in future)
 	T getResult(const std::vector<T>& values);
 };
 
