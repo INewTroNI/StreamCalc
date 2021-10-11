@@ -248,6 +248,11 @@ void Calc<T>::parserTokenizeString(std::string& str)
 						excl = j + 1;
 						continue;
 					}
+					if ((j - 1 > 0) && (letter(str[j - 1]) || digit(str[j - 1])))
+					{
+						excl = j + 1;
+						continue;
+					}
 					str.replace(j, size, ss.str());
 				}
 				
